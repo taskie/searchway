@@ -1,0 +1,66 @@
+#!/bin/bash
+
+if (( $# < 1 )); then
+    echo "usage: $0 pkgdir"
+    exit 1
+fi
+
+cd $1
+. ./PKGBUILD
+
+status=0
+i=0
+
+check_md5sum() {
+    local md5sum=$1
+    local basename=$2
+    if [[ $md5sum != SKIP ]]; then
+        if echo "$md5sum $basename" | md5sum -c; then
+            return 0
+        else
+            rm $basename
+            return 1
+        fi
+    fi
+    return 0
+}
+
+for url in ${source[@]}
+do
+    basename=$(basename $url)
+    md5sum=${md5sums[$i]}
+    check_md5sum $md5sum $basename
+    if [[ $url == git://* ]]; then
+        basename=${basename%.git}
+    fi
+    if [[ ! -e $basename ]]; then
+        if [[ $url == git://* ]]; then
+            if git clone --depth 1 $url; then
+                : #ok
+            else
+                rm -rf $basename
+                status=1
+            fi
+        elif [[ $url == http*://* ]]; then
+            if wget $url; then
+                if check_md5sum $md5sum $basename; then
+                    : # ok
+                else
+                    status=1
+                fi
+            else
+                rm $basename
+                status=1
+            fi
+        else
+            echo "unknown URL scheme: $url"
+            status 1
+        fi
+    fi
+    let i++
+done
+
+if (( $status )); then
+    echo "failed."
+    exit $status
+fi

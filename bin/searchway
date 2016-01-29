@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import sys
+import os.path
+import urllib2
+import json
+import tarfile
+
+url_aur = "https://aur.archlinux.org"
+url_rpc = url_aur + "/rpc.php"
+
+def search(args):
+    query = args[0]
+    url = url_rpc + "?type=search&arg=" + query
+    src = urllib2.urlopen(url)
+    root = json.load(src)
+    for result in root["results"]:
+        print(result["Name"] + " " + result["Version"] + " (" + str(result["NumVotes"]) + ")")
+        print("    " + result["Description"])
+
+def info(args):
+    pkgname = args[0]
+    url = url_rpc + "?type=info&arg=" + pkgname
+    src = urllib2.urlopen(url)
+    root = json.load(src)
+    result = root["results"]
+    for k, v in result.items():
+        print(k + ": " + str(v))
+
+def get(args):
+    pkgname = args[0]
+    url = url_rpc + "?type=info&arg=" + pkgname
+    src = urllib2.urlopen(url)
+    root = json.load(src)
+    result = root["results"]
+    url_snapshot = url_aur + result["URLPath"]
+    src_snapshot = urllib2.urlopen(url_snapshot)
+    basename_snapshot = os.path.basename(url_snapshot)
+    with open(basename_snapshot, "wb") as file_snapshot:
+        file_snapshot.write(src_snapshot.read())
+    with tarfile.open(basename_snapshot) as tar_snapshot:
+        tar_snapshot.extractall()
+    os.remove(basename_snapshot)
+
+def help(args):
+    print("usage: " + sys.argv[0] + " search/info/get/help")
+
+if len(sys.argv) < 2:
+    help([])
+    exit(1)
+
+subcommand = sys.argv[1].strip()
+subargs = sys.argv[2:]
+
+if subcommand == "search":
+    search(subargs)
+elif subcommand == "info":
+    info(subargs)
+elif subcommand == "get":
+    get(subargs)
+elif subcommand == "help":
+    help(subargs)
+else:
+    help([])
+    exit(1)
