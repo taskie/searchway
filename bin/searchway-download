@@ -14,8 +14,9 @@ i=0
 check_md5sum() {
     local md5sum=$1
     local basename=$2
+    echo "$md5sum  $basename"
     if [[ $md5sum != SKIP ]]; then
-        if echo "$md5sum $basename" | md5sum -c; then
+        if echo "$md5sum  $basename" | md5sum -c; then
             return 0
         else
             rm $basename
