@@ -93,8 +93,8 @@ def get_aur(args):
     basename_snapshot = os.path.basename(url_snapshot)
     with open(basename_snapshot, "wb") as file_snapshot:
         file_snapshot.write(src_snapshot.read())
-    with tarfile.open(basename_snapshot) as tar_snapshot:
-        tar_snapshot.extractall()
+    tar_snapshot = tarfile.open(basename_snapshot)
+    tar_snapshot.extractall()
     os.remove(basename_snapshot)
 
 def get(args):

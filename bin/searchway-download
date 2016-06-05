@@ -42,7 +42,7 @@ do
                 rm -rf $basename
                 status=1
             fi
-        elif [[ $url == http*://* ]]; then
+        else
             if wget $url; then
                 if check_md5sum $md5sum $basename; then
                     : # ok
@@ -53,9 +53,6 @@ do
                 rm $basename
                 status=1
             fi
-        else
-            echo "unknown URL scheme: $url"
-            status 1
         fi
     fi
     let i++
