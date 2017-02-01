@@ -14,7 +14,7 @@ STATUS=0
 #    exit 1
 
 if [[ -f $DIR/PKGBUILD ]]; then
-    echo -n "can't find .SRCINFO file. source PKGBUILD? > "
+    printf "source PKGBUILD? \e[31m(potentially dangerous!)\e[0m > "
     read YN
     case "$YN" in
         y*|Y*)
@@ -34,16 +34,22 @@ check() {
     local command=$1
     local sum=$2
     local basename=$3
-    local rmflag=${4:0}
+    local changestatus=${4:1}
+    local rmflag=${5:0}
+    if [[ -z $sum ]]; then
+        return 0
+    fi
     if [[ $sum != SKIP ]]; then
         echo "check $command $sum $basename"
-        if "$command" -c <(echo "$sum  $basename"); then
+        if echo "$sum  $basename" | "$command" -c; then
             return 0
         else
             if (( $rmflag )); then
                 rm "$basename"
             fi
-            STATUS=1
+            if (( $changestatus )); then
+                STATUS=1
+            fi
             return 1
         fi
     fi
@@ -57,35 +63,54 @@ do
     printf "\e[1m---- $url\e[0m ----\n"
 
     basename=$(basename "$url")
-    sha256sum=${sha256sums[$i]:-SKIP}
-    md5sum=${md5sums[$i]:-SKIP}
+    sha512sum=${sha512sums[$i]:-}
+    sha256sum=${sha256sums[$i]:-}
+    md5sum=${md5sums[$i]:-}
+    let i++
 
     if [[ -e $basename ]]; then
-        check sha256sum "$sha256sum" "$basename"
-        check md5sum "$md5sum" "$basename"
-    else
-        case "$url" in
-            git://*|git+https://*)
-                url="${url/git+https:/git:}.git"
-                if git clone --depth 1 "$url"; then
-                    : #ok
-                else
-                    rm -rf $basename
-                    STATUS=1
-                fi
-                ;;
-            *)
-                if curl -fLO "$url"; then
-                    check sha256sum "$sha256sum" "$basename"
-                    check md5sum "$md5sum" "$basename"
-                else
-                    rm $basename
-                    STATUS=1
-                fi
-                ;;
-        esac
+        if [[ -n $sha512sum ]]; then
+            if check sha512sum "$sha512sum" "$basename" 0; then
+                continue
+            fi
+        fi
+        if [[ -n $sha256sum ]]; then
+            if check sha256sum "$sha256sum" "$basename" 0; then
+                continue
+            fi
+        fi
+        if [[ -n $md5sum ]]; then
+            if check md5sum "$md5sum" "$basename" 0; then
+                continue
+            fi
+        fi
     fi
-    let i++
+
+    case "$url" in
+        git://*|git+https://*)
+            url="${url/git+https:/https:}"
+            if git clone --depth 1 "$url"; then
+                : #ok
+            else
+                rm -rf $basename
+                STATUS=1
+            fi
+            ;;
+        http://*|https://*)
+            if curl -fLO "$url"; then
+                    check sha512sum "$sha512sum" "$basename" 1 1
+                    check sha256sum "$sha256sum" "$basename" 1 1
+                    check md5sum "$md5sum" "$basename" 1 1
+            else
+                rm $basename
+                STATUS=1
+                fi
+            ;;
+        *)
+            echo "file not exists (or unimplemented...)"
+            STATUS=1
+            ;;
+    esac
 done
 
 if (( $STATUS )); then
