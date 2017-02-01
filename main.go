@@ -60,10 +60,10 @@ func info(env Env) (exitCode int) {
 			mode = srchway.JsonMode
 		}
 		err := repo.PrintInfoResponse(query, mode)
-		if err != nil {
-			fmt.Println(err)
-		} else {
+		if err == nil {
 			break
+		} else {
+			fmt.Println(err)
 		}
 	}
 	exitCode = 0
@@ -74,11 +74,9 @@ func get(env Env) (exitCode int) {
 	query := strings.Join(env.args, " ")
 	repos := env.repos()
 	for _, repo := range repos {
-		switch repo := repo.(type) {
-		case srchway.OfficialRepo:
-			repo.Get(query)
-		case srchway.UserRepo:
-			repo.Get(query)
+		err := repo.Get(query, "")
+		if err == nil {
+			break
 		}
 	}
 	exitCode = 0

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/fatih/color"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -148,7 +149,27 @@ Votes           : %d
 	return
 }
 
-func (repo UserRepo) Get(query string) (err error) {
-	err = nil
+func (repo UserRepo) Get(query string, outFilePath string) (err error) {
+	bytes, err := repo.Info(query)
+	if err != nil {
+		return
+	}
+	res, err := repo.ParseInfoResponse(bytes)
+	if err != nil {
+		return
+	}
+	url := UserBaseURL + "/" + res.Results.URLPath
+	outFile, err := createOutFile(outFilePath, url)
+	defer outFile.Close()
+	if err != nil {
+		return
+	}
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	if err != nil {
+		return
+	}
+	fmt.Printf("Downloading %s...\n", outFile.Name())
+	_, err = io.Copy(outFile, resp.Body)
 	return
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fatih/color"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -145,24 +146,6 @@ func (repo OfficialRepo) ParseInfoResponse(bytes []byte) (response OfficialInfoR
 	return
 }
 
-func joinOrNoneString(ss []string) (s string) {
-	if len(ss) == 0 {
-		s = "None"
-	} else {
-		s = strings.Join(ss, " ")
-	}
-	return
-}
-
-func joinOrNoneStringForOptDepends(ss []string) (s string) {
-	if len(ss) == 0 {
-		s = "None"
-	} else {
-		s = strings.Join(ss, "\n                  ")
-	}
-	return
-}
-
 func (repo OfficialRepo) PrintInfoResponse(query string, mode PrintMode) (err error) {
 	bytes, err := repo.Info(query)
 	if err != nil {
@@ -215,7 +198,33 @@ Build Date      : %s
 	return
 }
 
-func (repo OfficialRepo) Get(query string) (err error) {
-	err = nil
+func (repo OfficialRepo) Get(query string, outFilePath string) (err error) {
+	bytes, err := repo.Info(query)
+	if err != nil {
+		return
+	}
+	res, err := repo.ParseInfoResponse(bytes)
+	if err != nil {
+		return
+	}
+	var url string
+	switch res.Repo {
+	case "core", "extra":
+		url = OfficialCorePackageURL + "/" + res.PkgBase + ".tar.gz"
+	default:
+		url = OfficialCommunityPackageURL + "/" + res.PkgBase + ".tar.gz"
+	}
+	outFile, err := createOutFile(outFilePath, url)
+	defer outFile.Close()
+	if err != nil {
+		return
+	}
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	if err != nil {
+		return
+	}
+	fmt.Printf("Downloading %s...\n", outFile.Name())
+	_, err = io.Copy(outFile, resp.Body)
 	return
 }
