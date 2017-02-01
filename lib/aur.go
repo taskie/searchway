@@ -3,9 +3,11 @@ package srchway
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/fatih/color"
 	"io/ioutil"
 	"net/http"
-	"github.com/fatih/color"
+	"regexp"
+	"time"
 )
 
 const UserBaseURL = "https://aur.archlinux.org"
@@ -15,28 +17,28 @@ type UserRepo struct {
 }
 
 type UserSearchResponse struct {
-	Version int
-	Type string
+	Version     int
+	Type        string
 	ResultCount int
-	Results []UserSearchResult
+	Results     []UserSearchResult
 }
 
 type UserSearchResult struct {
-	ID int
-	Name string
-	PackageBaseID int
-	PackageBase string
-	Version string
-	Description string
-	URL string
-	NumVotes int
-	OutOfDate int
-	Maintainer string
+	ID             int
+	Name           string
+	PackageBaseID  int
+	PackageBase    string
+	Version        string
+	Description    string
+	URL            string
+	NumVotes       int
+	OutOfDate      int
+	Maintainer     string
 	FirstSubmitted int
-	LastModified int
-	License string
-	URLPath string
-	CategoryID int
+	LastModified   int
+	License        string
+	URLPath        string
+	CategoryID     int
 }
 
 func (repo UserRepo) Search(query string) (bytes []byte, err error) {
@@ -48,23 +50,6 @@ func (repo UserRepo) Search(query string) (bytes []byte, err error) {
 		return
 	}
 	bytes, err = ioutil.ReadAll(res.Body)
-	return
-}
-
-func (repo UserRepo) Info(query string) (bytes []byte, err error) {
-	url := UserRPCURL + "?type=info&arg=" + query
-	fmt.Println(url)
-	res, err := http.Get(url)
-	defer res.Body.Close()
-	if err != nil {
-		return
-	}
-	bytes, err = ioutil.ReadAll(res.Body)
-	return
-}
-
-func (repo UserRepo) Get(query string) (err error) {
-	err = nil
 	return
 }
 
@@ -98,5 +83,72 @@ func (repo UserRepo) PrintSearchResponse(query string, mode PrintMode) (err erro
 	case JsonMode:
 		fmt.Println(string(bytes[:]))
 	}
+	return
+}
+
+func (repo UserRepo) Info(query string) (bytes []byte, err error) {
+	url := UserRPCURL + "?type=info&arg=" + query
+	fmt.Println(url)
+	res, err := http.Get(url)
+	defer res.Body.Close()
+	if err != nil {
+		return
+	}
+	bytes, err = ioutil.ReadAll(res.Body)
+	return
+}
+
+type UserInfoResponse struct {
+	Version     int
+	Type        string
+	ResultCount int
+	Results     UserInfoResult
+}
+type UserInfoResult UserSearchResult
+
+func (repo UserRepo) ParseInfoResponse(bytes []byte) (response UserInfoResponse, err error) {
+	err = json.Unmarshal(bytes, &response)
+	return
+}
+
+func (repo UserRepo) PrintInfoResponse(query string, mode PrintMode) (err error) {
+	bytes, err := repo.Info(query)
+	if err != nil {
+		return
+	}
+	switch mode {
+	case NormalMode:
+		res, err := repo.ParseInfoResponse(bytes)
+		if err != nil {
+			return err
+		}
+		pkg := res.Results
+		str := `Repository      : %s
+Name            : %s
+Version         : %s
+Description     : %s
+URL             : %s
+License         : %s
+Maintainer      : %s
+Submitted       : %s
+Last Modified   : %s
+Snapshot        : %s
+Votes           : %d
+`
+		re := regexp.MustCompile("\\s*([^:]+:)([^\\n]*)\\n")
+		str = re.ReplaceAllString(str, "\x1b[1m$1\x1b[0m$2\n")
+		submitDate := time.Unix(int64(pkg.FirstSubmitted), 0)
+		modifiedDate := time.Unix(int64(pkg.LastModified), 0)
+		fmt.Printf(str, "aur", pkg.Name, pkg.Version, pkg.Description, pkg.URL, pkg.License,
+			pkg.Maintainer, submitDate, modifiedDate,
+			pkg.URLPath, pkg.NumVotes)
+	case JsonMode:
+		fmt.Println(string(bytes[:]))
+	}
+	return
+}
+
+func (repo UserRepo) Get(query string) (err error) {
+	err = nil
 	return
 }

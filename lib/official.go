@@ -1,11 +1,16 @@
 package srchway
 
 import (
+	"code.cloudfoundry.org/bytefmt"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/fatih/color"
 	"io/ioutil"
 	"net/http"
-	"github.com/fatih/color"
+	"regexp"
+	"strings"
+	"time"
 )
 
 type OfficialRepo struct{}
@@ -59,23 +64,6 @@ func (repo OfficialRepo) Search(query string) (bytes []byte, err error) {
 	return
 }
 
-func (repo OfficialRepo) Info(query string) (bytes []byte, err error) {
-	url := OfficialBaseURL + "/search/json/?arch=x86_64&q=" + query
-	fmt.Println(url)
-	resp, err := http.Get(url)
-	defer resp.Body.Close()
-	if err != nil {
-		return
-	}
-	bytes, err = ioutil.ReadAll(resp.Body)
-	return
-}
-
-func (repo OfficialRepo) Get(query string) (err error) {
-	err = nil
-	return
-}
-
 func (repo OfficialRepo) ParseSearchResponse(bytes []byte) (response OfficialSearchResponse, err error) {
 	err = json.Unmarshal(bytes, &response)
 	return
@@ -100,5 +88,134 @@ func (repo OfficialRepo) PrintSearchResponse(query string, mode PrintMode) (err 
 	case JsonMode:
 		fmt.Println(string(bytes[:]))
 	}
+	return
+}
+
+type OfficialInfoResponse OfficialSearchResult
+
+func (repo OfficialRepo) InfoFromPackage(repoName string, pkgName string) (bytes []byte, err error) {
+	url := OfficialBaseURL + fmt.Sprintf("/%s/x86_64/%s/json", repoName, pkgName)
+	fmt.Println(url)
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	if err != nil {
+		return
+	}
+	bytes, err = ioutil.ReadAll(resp.Body)
+	return
+}
+
+func (repo OfficialRepo) InfoFromSearch(query string) (bytes []byte, err error) {
+	bytes, err = repo.Search(query)
+	if err != nil {
+		return
+	}
+	res, err := repo.ParseSearchResponse(bytes)
+	if err != nil {
+		return bytes, err
+	}
+	var result OfficialSearchResult
+	for _, r := range res.Results {
+		if r.PkgName == query {
+			result = r
+		}
+	}
+	if result.PkgName == query {
+		bytes, err = repo.InfoFromPackage(result.Repo, result.PkgName)
+		return
+	} else {
+		err = errors.New("not found")
+		return bytes, err
+	}
+}
+
+func (repo OfficialRepo) Info(query string) (bytes []byte, err error) {
+	if strings.Contains(query, "/") {
+		parts := strings.Split(query, "/")
+		bytes, err = repo.InfoFromPackage(parts[0], parts[1])
+		return
+	} else {
+		bytes, err = repo.InfoFromSearch(query)
+		return
+	}
+}
+
+func (repo OfficialRepo) ParseInfoResponse(bytes []byte) (response OfficialInfoResponse, err error) {
+	err = json.Unmarshal(bytes, &response)
+	return
+}
+
+func joinOrNoneString(ss []string) (s string) {
+	if len(ss) == 0 {
+		s = "None"
+	} else {
+		s = strings.Join(ss, " ")
+	}
+	return
+}
+
+func joinOrNoneStringForOptDepends(ss []string) (s string) {
+	if len(ss) == 0 {
+		s = "None"
+	} else {
+		s = strings.Join(ss, "\n                  ")
+	}
+	return
+}
+
+func (repo OfficialRepo) PrintInfoResponse(query string, mode PrintMode) (err error) {
+	bytes, err := repo.Info(query)
+	if err != nil {
+		return
+	}
+	switch mode {
+	case NormalMode:
+		res, err := repo.ParseInfoResponse(bytes)
+		if err != nil {
+			return err
+		}
+		str := `Repository      : %s
+Name            : %s
+Version         : %s-%s
+Description     : %s
+Architecture    : %s
+URL             : %s
+Licenses        : %s
+Groups          : %s
+Provides        : %s
+Depends On      : %s
+Optional Deps   : %s
+Conflicts With  : %s
+Replaces        : %s
+Download Size   : %s
+Installed Size  : %s
+Packager        : %s
+Build Date      : %s
+`
+		re := regexp.MustCompile("\\s*([^:]+:)([^\\n]*)\\n")
+		str = re.ReplaceAllString(str, "\x1b[1m$1\x1b[0m$2\n")
+		buildDate, _ := time.Parse(time.RFC3339, res.BuildDate)
+		deps := make([]string, 0)
+		optdeps := make([]string, 0)
+		for _, v := range res.Depends {
+			if strings.Contains(v, ":") {
+				optdeps = append(optdeps, v)
+			} else {
+				deps = append(deps, v)
+			}
+		}
+		fmt.Printf(str, res.Repo, res.PkgName, res.PkgVer, res.PkgRel, res.PkgDesc, res.Arch, res.Url,
+			joinOrNoneString(res.Licenses), joinOrNoneString(res.Groups), joinOrNoneString(res.Provides),
+			joinOrNoneString(deps), joinOrNoneStringForOptDepends(optdeps), joinOrNoneString(res.Conflicts), joinOrNoneString(res.Replaces),
+			bytefmt.ByteSize(uint64(res.CompressedSize)), bytefmt.ByteSize(uint64(res.InstalledSize)),
+			res.Packager, buildDate)
+	case JsonMode:
+		fmt.Println(string(bytes[:]))
+	}
+	return
+}
+
+func (repo OfficialRepo) Get(query string) (err error) {
+	err = nil
 	return
 }

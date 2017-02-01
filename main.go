@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/taskie/srchway/lib"
 	"os"
 	"strings"
-	"github.com/taskie/srchway/lib"
 )
 
 type Env struct {
@@ -13,16 +13,17 @@ type Env struct {
 	verbose      bool
 	aurFlag      bool
 	officialFlag bool
+	jsonFlag     bool
 }
 
 func (env Env) repos() (repos []srchway.Repo) {
 	repos = make([]srchway.Repo, 0)
 	fmt.Println(env)
 	if env.officialFlag {
-		repos = append(repos, srchway.OfficialRepo {})
+		repos = append(repos, srchway.OfficialRepo{})
 	}
 	if env.aurFlag {
-		repos = append(repos, srchway.UserRepo {})
+		repos = append(repos, srchway.UserRepo{})
 	}
 	return
 }
@@ -37,7 +38,11 @@ func search(env Env) (exitCode int) {
 	query := strings.Join(env.args, " ")
 	repos := env.repos()
 	for _, repo := range repos {
-		err := repo.PrintSearchResponse(query, srchway.NormalMode)
+		mode := srchway.NormalMode
+		if env.jsonFlag {
+			mode = srchway.JsonMode
+		}
+		err := repo.PrintSearchResponse(query, mode)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -47,8 +52,21 @@ func search(env Env) (exitCode int) {
 }
 
 func info(env Env) (exitCode int) {
-	fmt.Println("unimplemented")
-	exitCode = 1
+	query := strings.Join(env.args, " ")
+	repos := env.repos()
+	for _, repo := range repos {
+		mode := srchway.NormalMode
+		if env.jsonFlag {
+			mode = srchway.JsonMode
+		}
+		err := repo.PrintInfoResponse(query, mode)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			break
+		}
+	}
+	exitCode = 0
 	return
 }
 
@@ -71,15 +89,17 @@ func main() {
 	pVerbose := flag.Bool("v", false, "verbose mode")
 	pAurFlag := flag.Bool("a", false, "AUR")
 	pAurOnlyFlag := flag.Bool("A", false, "AUR only")
+	pJsonFlag := flag.Bool("j", false, "show JSON (when search / info)")
 	flag.Parse()
 	if flag.NArg() == 0 {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 	subcommand := flag.Arg(0)
-	env := Env {
+	env := Env{
 		args: flag.Args()[1:], verbose: *pVerbose,
 		aurFlag: *pAurFlag || *pAurOnlyFlag, officialFlag: !*pAurOnlyFlag,
+		jsonFlag: *pJsonFlag,
 	}
 
 	exitCode := 0
