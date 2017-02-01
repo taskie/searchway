@@ -55,7 +55,6 @@ type OfficialSearchResult struct {
 
 func (repo OfficialRepo) Search(query string) (bytes []byte, err error) {
 	url := OfficialBaseURL + "/search/json/?arch=x86_64&q=" + query
-	fmt.Println(url)
 	resp, err := http.Get(url)
 	defer resp.Body.Close()
 	if err != nil {
@@ -96,7 +95,6 @@ type OfficialInfoResponse OfficialSearchResult
 
 func (repo OfficialRepo) InfoFromPackage(repoName string, pkgName string) (bytes []byte, err error) {
 	url := OfficialBaseURL + fmt.Sprintf("/%s/x86_64/%s/json", repoName, pkgName)
-	fmt.Println(url)
 	resp, err := http.Get(url)
 	defer resp.Body.Close()
 	if err != nil {

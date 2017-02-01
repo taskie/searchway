@@ -1,5 +1,4 @@
 #!/bin/bash
-set -u
 
 DIR=.
 
@@ -88,8 +87,21 @@ do
 
     case "$url" in
         git://*|git+https://*)
-            url="${url/git+https:/https:}"
-            if git clone --depth 1 "$url"; then
+            url="${url/git+https:/git:}"
+            tag=${url##*\#}
+            url=${url%%\#*}
+            tagtype=${tag%%\=*}
+            tag=${tag##*\=}
+            if [[ -n $tag ]]; then
+                if [[ $tagtype == tag ]]; then
+                    tag="-b $tag"
+                else
+                    echo "#$tagtype=$tag unimplemented"
+                    tag=""
+                    STATUS=1
+                fi
+            fi
+            if git clone --depth 1 $tag "$url"; then
                 : #ok
             else
                 rm -rf $basename

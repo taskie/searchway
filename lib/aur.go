@@ -44,7 +44,6 @@ type UserSearchResult struct {
 
 func (repo UserRepo) Search(query string) (bytes []byte, err error) {
 	url := UserRPCURL + "?type=search&arg=" + query
-	fmt.Println(url)
 	res, err := http.Get(url)
 	defer res.Body.Close()
 	if err != nil {
@@ -89,7 +88,6 @@ func (repo UserRepo) PrintSearchResponse(query string, mode PrintMode) (err erro
 
 func (repo UserRepo) Info(query string) (bytes []byte, err error) {
 	url := UserRPCURL + "?type=info&arg=" + query
-	fmt.Println(url)
 	res, err := http.Get(url)
 	defer res.Body.Close()
 	if err != nil {
