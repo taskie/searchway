@@ -17,7 +17,7 @@ const (
 type Repo interface {
 	Search(query string) (bytes []byte, err error)
 	Info(query string) (bytes []byte, err error)
-	Get(query string, outFilePath string) (err error)
+	Get(query string, outFilePath string) (newOutFilePath string, err error)
 	PrintSearchResponse(query string, mode PrintMode) (err error)
 	PrintInfoResponse(query string, mode PrintMode) (err error)
 }
@@ -40,7 +40,7 @@ func joinOrNoneStringForOptDepends(ss []string) (s string) {
 	return
 }
 
-func createOutFile(outFilePath string, url string) (file *os.File, err error) {
+func createOutFile(outFilePath string, url string) (file *os.File, newOutFilePath string, err error) {
 	if outFilePath == "" {
 		outFilePath = path.Base(url)
 	}
@@ -49,10 +49,13 @@ func createOutFile(outFilePath string, url string) (file *os.File, err error) {
 	case err != nil:
 		// how to handle err? (through)
 		file, err = os.Create(outFilePath)
+		if err == nil {
+			newOutFilePath = outFilePath
+		}
 		return
 	case fi.IsDir():
 		outFilePath2 := outFilePath + "/" + path.Base(url)
-		file, err = createOutFile(outFilePath2, url)
+		file, newOutFilePath, err = createOutFile(outFilePath2, url)
 		return
 	default:
 		err = errors.New("file exists")

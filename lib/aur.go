@@ -149,7 +149,7 @@ Votes           : %d
 	return
 }
 
-func (repo UserRepo) Get(query string, outFilePath string) (err error) {
+func (repo UserRepo) Get(query string, outFilePath string) (newOutFilePath string, err error) {
 	bytes, err := repo.Info(query)
 	if err != nil {
 		return
@@ -159,7 +159,7 @@ func (repo UserRepo) Get(query string, outFilePath string) (err error) {
 		return
 	}
 	url := UserBaseURL + "/" + res.Results.URLPath
-	outFile, err := createOutFile(outFilePath, url)
+	outFile, newOutFilePath, err := createOutFile(outFilePath, url)
 	defer outFile.Close()
 	if err != nil {
 		return
@@ -169,7 +169,7 @@ func (repo UserRepo) Get(query string, outFilePath string) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("Downloading %s...\n", outFile.Name())
+	fmt.Printf("Downloading %s...\n", newOutFilePath)
 	_, err = io.Copy(outFile, resp.Body)
 	return
 }

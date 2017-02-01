@@ -198,7 +198,7 @@ Build Date      : %s
 	return
 }
 
-func (repo OfficialRepo) Get(query string, outFilePath string) (err error) {
+func (repo OfficialRepo) Get(query string, outFilePath string) (newOutFilePath string, err error) {
 	bytes, err := repo.Info(query)
 	if err != nil {
 		return
@@ -214,7 +214,7 @@ func (repo OfficialRepo) Get(query string, outFilePath string) (err error) {
 	default:
 		url = OfficialCommunityPackageURL + "/" + res.PkgBase + ".tar.gz"
 	}
-	outFile, err := createOutFile(outFilePath, url)
+	outFile, newOutFilePath, err := createOutFile(outFilePath, url)
 	defer outFile.Close()
 	if err != nil {
 		return

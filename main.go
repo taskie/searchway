@@ -71,15 +71,27 @@ func info(env Env) (exitCode int) {
 }
 
 func get(env Env) (exitCode int) {
+	exitCode = 1
 	query := strings.Join(env.args, " ")
 	repos := env.repos()
 	for _, repo := range repos {
-		err := repo.Get(query, "")
-		if err == nil {
-			break
+		_, err := repo.Get(query, "")
+		if err != nil {
+			fmt.Println(err)
+			continue
 		}
+		/*
+		fmt.Println("Extracting " + outFilePath + "...")
+		outFilePath, err = srchway.ExtractAndRemoveTarGz(outFilePath)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			exitCode = 0
+		}
+*/
+		exitCode = 0
+		break
 	}
-	exitCode = 0
 	return
 }
 
