@@ -1,11 +1,13 @@
 package srchway
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
-	"compress/gzip"
-	"archive/tar"
 	"strings"
 )
 
@@ -61,21 +63,28 @@ func UnarchiveTar(inFilePath string) (outFilePath string, err error) {
 			return outFilePath, err
 		}
 
-		path := filepath.Join(outFilePath, header.Name)
+		newOutFilePath := filepath.Join(outFilePath, header.Name)
 		info := header.FileInfo()
+
+		fmt.Println(header)
+		fmt.Println(newOutFilePath)
+		fmt.Println(info)
+
 		if info.IsDir() {
-			if err = os.MkdirAll(path, info.Mode()); err != nil {
+			if err = os.MkdirAll(newOutFilePath, info.Mode()); err != nil {
 				return outFilePath, err
 			}
 			continue
+		} else {
+			os.MkdirAll(path.Dir(newOutFilePath), info.Mode())
 		}
 
-		file, err:= os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+		file, err := os.OpenFile(newOutFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 		if err != nil {
 			return outFilePath, err
 		}
 		defer file.Close()
-		_, err =io.Copy(file, tarReader)
+		_, err = io.Copy(file, tarReader)
 		if err != nil {
 			return outFilePath, err
 		}

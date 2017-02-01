@@ -1,0 +1,94 @@
+#!/bin/bash
+set -u
+
+DIR=.
+
+if (( $# > 1 )); then
+    DIR=$1
+fi
+
+STATUS=0
+
+#if [[ -f $DIR/.SRCINFO ]]; then
+#    echo "unimplemented!"
+#    exit 1
+
+if [[ -f $DIR/PKGBUILD ]]; then
+    echo -n "can't find .SRCINFO file. source PKGBUILD? > "
+    read YN
+    case "$YN" in
+        y*|Y*)
+            :
+            ;;
+        *)
+            exit 1
+            ;;
+    esac
+    . $DIR/PKGBUILD
+else
+    echo "no .SRCINFO or PKGBUILD"
+    exit 1
+fi
+
+check() {
+    local command=$1
+    local sum=$2
+    local basename=$3
+    local rmflag=${4:0}
+    if [[ $sum != SKIP ]]; then
+        echo "check $command $sum $basename"
+        if "$command" -c <(echo "$sum  $basename"); then
+            return 0
+        else
+            if (( $rmflag )); then
+                rm "$basename"
+            fi
+            STATUS=1
+            return 1
+        fi
+    fi
+    return 0
+}
+
+i=0
+
+for url in ${source[@]}
+do
+    printf "\e[1m---- $url\e[0m ----\n"
+
+    basename=$(basename "$url")
+    sha256sum=${sha256sums[$i]:-SKIP}
+    md5sum=${md5sums[$i]:-SKIP}
+
+    if [[ -e $basename ]]; then
+        check sha256sum "$sha256sum" "$basename"
+        check md5sum "$md5sum" "$basename"
+    else
+        case "$url" in
+            git://*|git+https://*)
+                url="${url/git+https:/git:}.git"
+                if git clone --depth 1 "$url"; then
+                    : #ok
+                else
+                    rm -rf $basename
+                    STATUS=1
+                fi
+                ;;
+            *)
+                if curl -fLO "$url"; then
+                    check sha256sum "$sha256sum" "$basename"
+                    check md5sum "$md5sum" "$basename"
+                else
+                    rm $basename
+                    STATUS=1
+                fi
+                ;;
+        esac
+    fi
+    let i++
+done
+
+if (( $STATUS )); then
+    echo "failed."
+    exit $STATUS
+fi

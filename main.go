@@ -80,16 +80,6 @@ func get(env Env) (exitCode int) {
 			fmt.Println(err)
 			continue
 		}
-		/*
-		fmt.Println("Extracting " + outFilePath + "...")
-		outFilePath, err = srchway.ExtractAndRemoveTarGz(outFilePath)
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			exitCode = 0
-		}
-*/
-		exitCode = 0
 		break
 	}
 	return

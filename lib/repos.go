@@ -1,10 +1,10 @@
 package srchway
 
 import (
-	"strings"
+	"errors"
 	"os"
 	"path"
-	"errors"
+	"strings"
 )
 
 type PrintMode int
@@ -44,7 +44,7 @@ func createOutFile(outFilePath string, url string) (file *os.File, newOutFilePat
 	if outFilePath == "" {
 		outFilePath = path.Base(url)
 	}
-	fi, err := os.Stat(outFilePath);
+	fi, err := os.Stat(outFilePath)
 	switch {
 	case err != nil:
 		// how to handle err? (through)
