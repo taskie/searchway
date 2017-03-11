@@ -64,3 +64,6 @@ tar zvxf zsh.tar.gz
 cd packages/zsh/trunk
 srchdown
 ```
+# LICENSE
+
+Apache License 2.0
