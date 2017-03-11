@@ -11,6 +11,7 @@ OPERATION:
     -i, --info      show package info
     -g, --get       get PKGBUILD
     -h, --help      show help
+    -V, --version   show version
 
 OPTIONS:
     -a, --aur       use AUR
