@@ -1,5 +1,7 @@
 package srchway
 
+const VersionString = "0.1"
+
 type OperationType int
 
 const (
@@ -8,6 +10,7 @@ const (
 	OperationTypeInfo
 	OperationTypeGet
 	OperationTypeHelp
+	OperationTypeVersion
 )
 
 type Conf struct {

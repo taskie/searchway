@@ -227,7 +227,7 @@ Build Date      : %s
 	return
 }
 
-func (repo OfficialRepo) Get(conf Conf) (newOutFilePath string, err error) {
+func (repo OfficialRepo) DownloadTarGz(conf Conf) (newOutFilePath string, err error) {
 	outFilePath := "" // TODO
 	bytes, err := repo.Info(conf)
 	if err != nil {
@@ -256,5 +256,10 @@ func (repo OfficialRepo) Get(conf Conf) (newOutFilePath string, err error) {
 	defer resp.Body.Close()
 	fmt.Printf("Downloading %s...\n", outFile.Name())
 	_, err = io.Copy(outFile, resp.Body)
+	return
+}
+
+func (repo OfficialRepo) Get(conf Conf) (newOutFilePath string, err error) {
+	newOutFilePath, err = repo.DownloadTarGz(conf)
 	return
 }

@@ -6,14 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/taskie/srchway/lib"
+	"github.com/taskie/srchway"
 )
-
-func version(conf srchway.Conf) (exitCode int) {
-	fmt.Println("0.0")
-	exitCode = 0
-	return
-}
 
 func search(conf srchway.Conf) (exitCode int) {
 	exitCode = 1
@@ -75,6 +69,18 @@ OPTIONS:
     -j, --json      output raw JSON (when --search, --info)
     -v, --verbose   verbose mode`
 
+func help(conf srchway.Conf) (exitCode int) {
+	fmt.Println(usage)
+	exitCode = 0
+	return
+}
+
+func version(conf srchway.Conf) (exitCode int) {
+	fmt.Println(srchway.VersionString)
+	exitCode = 0
+	return
+}
+
 func parseOption(arg string, conf *srchway.Conf) (err error) {
 	if !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") {
 		for i := 1; i < len(arg); i++ {
@@ -94,6 +100,8 @@ func parseOption(arg string, conf *srchway.Conf) (err error) {
 		conf.Operation = srchway.OperationTypeGet
 	case "h", "--help":
 		conf.Operation = srchway.OperationTypeHelp
+	case "V", "--version":
+		conf.Operation = srchway.OperationTypeVersion
 	case "a", "--aur":
 		conf.AurFlag = true
 	case "A", "--auronly":
@@ -156,7 +164,9 @@ func main() {
 	case srchway.OperationTypeGet:
 		exitCode = get(conf)
 	case srchway.OperationTypeHelp:
-		fmt.Println(usage)
+		exitCode = help(conf)
+	case srchway.OperationTypeVersion:
+		exitCode = version(conf)
 	default:
 		exitCode = 1
 	}
