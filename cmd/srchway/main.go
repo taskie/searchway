@@ -60,12 +60,13 @@ OPERATION:
     -i, --info      show package info
     -g, --get       get PKGBUILD
     -h, --help      show help
+    -V, --version   show version
 
 OPTIONS:
     -a, --aur       use AUR
     -A, --auronly   use AUR only (no offcial repo)
     -m, --multilib  use multilib repo
-    -t, --testing   use testing repo    
+    -t, --testing   use testing repo
     -j, --json      output raw JSON (when --search, --info)
     -v, --verbose   verbose mode`
 
