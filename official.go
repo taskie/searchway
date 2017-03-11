@@ -7,12 +7,15 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 	"regexp"
 	"strings"
 	"time"
 
 	"code.cloudfoundry.org/bytefmt"
 	"github.com/fatih/color"
+	"github.com/termie/go-shutil"
 )
 
 type OfficialRepo struct{}
@@ -227,24 +230,31 @@ Build Date      : %s
 	return
 }
 
-func (repo OfficialRepo) DownloadTarGz(conf Conf) (newOutFilePath string, err error) {
-	outFilePath := "" // TODO
+func (repo OfficialRepo) GetInfoToDownload(conf Conf) (res OfficialInfoResponse, isCommunity bool, url string, err error) {
 	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
-	res, err := repo.ParseInfoResponse(bytes)
+	res, err = repo.ParseInfoResponse(bytes)
 	if err != nil {
 		return
 	}
-	var url string
 	switch res.Repo {
 	case "core", "extra", "testing":
-		url = OfficialCorePackageURL + "/" + res.PkgBase + ".tar.gz"
+		isCommunity = false
 	default:
-		url = OfficialCommunityPackageURL + "/" + res.PkgBase + ".tar.gz"
+		isCommunity = true
 	}
-	outFile, newOutFilePath, err := createOutFile(outFilePath, url)
+	if isCommunity {
+		url = OfficialCommunityPackageURL + "/" + res.PkgBase + ".tar.gz"
+	} else {
+		url = OfficialCorePackageURL + "/" + res.PkgBase + ".tar.gz"
+	}
+	return
+}
+
+func (repo OfficialRepo) DownloadTarGz(conf Conf, url string, outDir string) (newOutFilePath string, err error) {
+	outFile, newOutFilePath, err := createOutFile(outDir, url)
 	defer outFile.Close()
 	if err != nil {
 		return
@@ -254,12 +264,51 @@ func (repo OfficialRepo) DownloadTarGz(conf Conf) (newOutFilePath string, err er
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Printf("Downloading %s...\n", outFile.Name())
 	_, err = io.Copy(outFile, resp.Body)
 	return
 }
 
 func (repo OfficialRepo) Get(conf Conf) (newOutFilePath string, err error) {
-	newOutFilePath, err = repo.DownloadTarGz(conf)
+	info, isCommunity, url, err := repo.GetInfoToDownload(conf)
+	if err != nil {
+		return
+	}
+
+	destDir := path.Join(conf.OutDir, info.PkgName)
+	_, err = os.Stat(destDir)
+	if err == nil {
+		err = errors.New(destDir + " already exists")
+		return
+	}
+	err = nil
+
+	tempDir, err := ioutil.TempDir("", "srchway-")
+	if err != nil {
+		return
+	}
+
+	color.New(color.FgBlue).Add(color.Bold).Println("Downloading " + url + " ...")
+	tarGzPath, err := repo.DownloadTarGz(conf, url, tempDir)
+	if err != nil {
+		return
+	}
+
+	color.New(color.FgBlue).Add(color.Bold).Println("Extracting " + tarGzPath + " ...")
+	newOutFilePath, err = ExtractAndRemoveTarGz(tarGzPath)
+	var packagesDir string
+	if isCommunity {
+		packagesDir = "community-packages"
+	} else {
+		packagesDir = "packages"
+	}
+
+	srcDir := path.Join(newOutFilePath, packagesDir, info.PkgName, "repos", info.Repo+"-x86_64")
+	color.New(color.FgBlue).Add(color.Bold).Println("Copying " + srcDir + " to " + destDir + " ...")
+	err = shutil.CopyTree(srcDir, destDir, nil)
+	if err != nil {
+		return
+	}
+
+	err = os.RemoveAll(tempDir)
 	return
 }

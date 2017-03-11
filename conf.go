@@ -14,6 +14,7 @@ const (
 type Conf struct {
 	Operation    OperationType
 	Args         []string
+	OutDir       string
 	Verbose      bool
 	AurFlag      bool
 	OfficialFlag bool

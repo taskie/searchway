@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const VersionString = "0.1.0"
+const VersionString = "0.2.0a"
 
 type QueryItem struct {
 	Key    string

@@ -2,14 +2,18 @@ package srchway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 	"regexp"
 	"time"
 
 	"github.com/fatih/color"
+	shutil "github.com/termie/go-shutil"
 )
 
 const UserBaseURL = "https://aur.archlinux.org"
@@ -154,18 +158,21 @@ Votes           : %d
 	return
 }
 
-func (repo UserRepo) DownloadTarGz(conf Conf) (newOutFilePath string, err error) {
-	outFilePath := "" // TODO
+func (repo UserRepo) GetInfoToDownload(conf Conf) (res UserInfoResponse, url string, err error) {
 	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
-	res, err := repo.ParseInfoResponse(bytes)
+	res, err = repo.ParseInfoResponse(bytes)
 	if err != nil {
 		return
 	}
-	url := UserBaseURL + "/" + res.Results.URLPath
-	outFile, newOutFilePath, err := createOutFile(outFilePath, url)
+	url = UserBaseURL + res.Results.URLPath
+	return
+}
+
+func (repo UserRepo) DownloadTarGz(conf Conf, url string, outDir string) (newOutFilePath string, err error) {
+	outFile, newOutFilePath, err := createOutFile(outDir, url)
 	defer outFile.Close()
 	if err != nil {
 		return
@@ -175,12 +182,46 @@ func (repo UserRepo) DownloadTarGz(conf Conf) (newOutFilePath string, err error)
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Printf("Downloading %s...\n", newOutFilePath)
 	_, err = io.Copy(outFile, resp.Body)
 	return
 }
 
 func (repo UserRepo) Get(conf Conf) (newOutFilePath string, err error) {
-	newOutFilePath, err = repo.DownloadTarGz(conf)
+	info, url, err := repo.GetInfoToDownload(conf)
+	if err != nil {
+		return
+	}
+	result := info.Results
+
+	destDir := path.Join(conf.OutDir, result.Name)
+	_, err = os.Stat(destDir)
+	if err == nil {
+		err = errors.New(destDir + " already exists")
+		return
+	}
+	err = nil
+
+	tempDir, err := ioutil.TempDir("", "srchway-")
+	if err != nil {
+		return
+	}
+
+	color.New(color.FgBlue).Add(color.Bold).Println("Downloading " + url + " ...")
+	tarGzPath, err := repo.DownloadTarGz(conf, url, tempDir)
+	if err != nil {
+		return
+	}
+
+	color.New(color.FgBlue).Add(color.Bold).Println("Extracting " + tarGzPath + " ...")
+	newOutFilePath, err = ExtractAndRemoveTarGz(tarGzPath)
+
+	srcDir := path.Join(newOutFilePath, result.Name)
+	color.New(color.FgBlue).Add(color.Bold).Println("Copying " + srcDir + " to " + destDir + " ...")
+	err = shutil.CopyTree(srcDir, destDir, nil)
+	if err != nil {
+		return
+	}
+
+	err = os.RemoveAll(tempDir)
 	return
 }
