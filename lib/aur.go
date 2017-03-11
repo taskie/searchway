@@ -3,12 +3,13 @@ package srchway
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/fatih/color"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 const UserBaseURL = "https://aur.archlinux.org"
@@ -42,13 +43,17 @@ type UserSearchResult struct {
 	CategoryID     int
 }
 
-func (repo UserRepo) Search(query string) (bytes []byte, err error) {
-	url := UserRPCURL + "?type=search&arg=" + query
+func (repo UserRepo) Search(conf Conf) (bytes []byte, err error) {
+	queryItems := []QueryItem{
+		{Key: "type", Values: []string{"search"}},
+		{Key: "arg", Values: conf.Args},
+	}
+	url := UserRPCURL + "?" + BuildQueryString(queryItems)
 	res, err := http.Get(url)
-	defer res.Body.Close()
 	if err != nil {
 		return
 	}
+	defer res.Body.Close()
 	bytes, err = ioutil.ReadAll(res.Body)
 	return
 }
@@ -58,13 +63,14 @@ func (repo UserRepo) ParseSearchResponse(bytes []byte) (response UserSearchRespo
 	return
 }
 
-func (repo UserRepo) PrintSearchResponse(query string, mode PrintMode) (err error) {
-	bytes, err := repo.Search(query)
+func (repo UserRepo) PrintSearchResponse(conf Conf) (err error) {
+	bytes, err := repo.Search(conf)
 	if err != nil {
 		return
 	}
-	switch mode {
-	case NormalMode:
+	if conf.JsonFlag {
+		fmt.Println(string(bytes[:]))
+	} else {
 		res, err := repo.ParseSearchResponse(bytes)
 		if err != nil {
 			return err
@@ -80,19 +86,21 @@ func (repo UserRepo) PrintSearchResponse(query string, mode PrintMode) (err erro
 			fmt.Printf(" (%d)\n", pkg.NumVotes)
 			fmt.Printf("    %s\n", pkg.Description)
 		}
-	case JsonMode:
-		fmt.Println(string(bytes[:]))
 	}
 	return
 }
 
-func (repo UserRepo) Info(query string) (bytes []byte, err error) {
-	url := UserRPCURL + "?type=info&arg=" + query
+func (repo UserRepo) Info(conf Conf) (bytes []byte, err error) {
+	queryItems := []QueryItem{
+		{Key: "type", Values: []string{"info"}},
+		{Key: "arg", Values: conf.Args},
+	}
+	url := UserRPCURL + "?" + BuildQueryString(queryItems)
 	res, err := http.Get(url)
-	defer res.Body.Close()
 	if err != nil {
 		return
 	}
+	defer res.Body.Close()
 	bytes, err = ioutil.ReadAll(res.Body)
 	return
 }
@@ -110,13 +118,14 @@ func (repo UserRepo) ParseInfoResponse(bytes []byte) (response UserInfoResponse,
 	return
 }
 
-func (repo UserRepo) PrintInfoResponse(query string, mode PrintMode) (err error) {
-	bytes, err := repo.Info(query)
+func (repo UserRepo) PrintInfoResponse(conf Conf) (err error) {
+	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
-	switch mode {
-	case NormalMode:
+	if conf.JsonFlag {
+		fmt.Println(string(bytes[:]))
+	} else {
 		res, err := repo.ParseInfoResponse(bytes)
 		if err != nil {
 			return err
@@ -141,14 +150,13 @@ Votes           : %d
 		fmt.Printf(str, "aur", pkg.Name, pkg.Version, pkg.Description, pkg.URL, pkg.License,
 			pkg.Maintainer, submitDate, modifiedDate,
 			pkg.URLPath, pkg.NumVotes)
-	case JsonMode:
-		fmt.Println(string(bytes[:]))
 	}
 	return
 }
 
-func (repo UserRepo) Get(query string, outFilePath string) (newOutFilePath string, err error) {
-	bytes, err := repo.Info(query)
+func (repo UserRepo) Get(conf Conf) (newOutFilePath string, err error) {
+	outFilePath := "" // TODO
+	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
@@ -163,10 +171,10 @@ func (repo UserRepo) Get(query string, outFilePath string) (newOutFilePath strin
 		return
 	}
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	fmt.Printf("Downloading %s...\n", newOutFilePath)
 	_, err = io.Copy(outFile, resp.Body)
 	return

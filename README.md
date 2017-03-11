@@ -7,16 +7,18 @@ Application to search Arch Linux official/user repositories and download PKGBUIL
 ```
 usage: srchway [OPERATION] [OPTIONS] [QUERY]
 OPERATION:
-    -s, --search   search package
-    -i, --info     show package info
-    -g, --get      get PKGBUILD
-    -h, --help     show help
+    -s, --search    search package
+    -i, --info      show package info
+    -g, --get       get PKGBUILD
+    -h, --help      show help
 
 OPTIONS:
-    -a, --aur      use AUR
-    -A, --auronly  use AUR only (no offcial repo)
-    -j, --json     output raw JSON (when --search, --info)
-    -v, --verbose  verbose mode
+    -a, --aur       use AUR
+    -A, --auronly   use AUR only (no offcial repo)
+	-m, --multilib  use multilib repo
+	-t, --testing   use testing repo    
+    -j, --json      output raw JSON (when --search, --info)
+    -v, --verbose   verbose mode
 ```
 
 ### Search

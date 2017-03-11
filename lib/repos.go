@@ -2,24 +2,37 @@ package srchway
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"path"
 	"strings"
 )
 
-type PrintMode int
-
-const (
-	NormalMode PrintMode = iota
-	JsonMode
-)
-
 type Repo interface {
-	Search(query string) (bytes []byte, err error)
-	Info(query string) (bytes []byte, err error)
-	Get(query string, outFilePath string) (newOutFilePath string, err error)
-	PrintSearchResponse(query string, mode PrintMode) (err error)
-	PrintInfoResponse(query string, mode PrintMode) (err error)
+	Search(conf Conf) (bytes []byte, err error)
+	Info(conf Conf) (bytes []byte, err error)
+	Get(conf Conf) (newOutFilePath string, err error)
+	PrintSearchResponse(conf Conf) (err error)
+	PrintInfoResponse(conf Conf) (err error)
+}
+
+type QueryItem struct {
+	Key    string
+	Values []string
+}
+
+func BuildQueryString(qs []QueryItem) (queryString string) {
+	ss := make([]string, 0)
+	for _, item := range qs {
+		escapedValues := make([]string, len(item.Values))
+		for j, value := range item.Values {
+			escapedValues[j] = url.QueryEscape(value)
+		}
+		value := strings.Join(escapedValues, "+")
+		ss = append(ss, url.QueryEscape(item.Key)+"="+value)
+	}
+	queryString = strings.Join(ss, "&")
+	return
 }
 
 func joinOrNoneString(ss []string) (s string) {

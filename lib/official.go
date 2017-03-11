@@ -1,17 +1,18 @@
 package srchway
 
 import (
-	"code.cloudfoundry.org/bytefmt"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fatih/color"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"code.cloudfoundry.org/bytefmt"
+	"github.com/fatih/color"
 )
 
 type OfficialRepo struct{}
@@ -53,13 +54,33 @@ type OfficialSearchResult struct {
 	Url            string
 }
 
-func (repo OfficialRepo) Search(query string) (bytes []byte, err error) {
-	url := OfficialBaseURL + "/search/json/?arch=x86_64&q=" + query
+func (repo OfficialRepo) BuildSearchQueryItems(conf Conf) (queryItems []QueryItem) {
+	repoNames := []string{"Core", "Extra", "Community"}
+	if conf.TestingFlag {
+		repoNames = append(repoNames, "Testing", "Community-Testing")
+	}
+	if conf.MultilibFlag {
+		repoNames = append(repoNames, "Multilib")
+		if conf.TestingFlag {
+			repoNames = append(repoNames, "Multilib-Testing")
+		}
+	}
+	queryItems = []QueryItem{{Key: "arch", Values: []string{"x86_64"}}}
+	for _, repoName := range repoNames {
+		queryItems = append(queryItems, QueryItem{Key: "repo", Values: []string{repoName}})
+	}
+	queryItems = append(queryItems, QueryItem{Key: "q", Values: conf.Args})
+	return
+}
+
+func (repo OfficialRepo) Search(conf Conf) (bytes []byte, err error) {
+	queryItems := repo.BuildSearchQueryItems(conf)
+	url := OfficialBaseURL + "/search/json/?" + BuildQueryString(queryItems)
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	bytes, err = ioutil.ReadAll(resp.Body)
 	return
 }
@@ -69,13 +90,14 @@ func (repo OfficialRepo) ParseSearchResponse(bytes []byte) (response OfficialSea
 	return
 }
 
-func (repo OfficialRepo) PrintSearchResponse(query string, mode PrintMode) (err error) {
-	bytes, err := repo.Search(query)
+func (repo OfficialRepo) PrintSearchResponse(conf Conf) (err error) {
+	bytes, err := repo.Search(conf)
 	if err != nil {
 		return
 	}
-	switch mode {
-	case NormalMode:
+	if conf.JsonFlag {
+		fmt.Println(string(bytes[:]))
+	} else {
 		res, err := repo.ParseSearchResponse(bytes)
 		if err != nil {
 			return err
@@ -85,8 +107,6 @@ func (repo OfficialRepo) PrintSearchResponse(query string, mode PrintMode) (err 
 			color.New(color.Bold).Printf("/%s %s-%s\n", pkg.PkgName, pkg.PkgVer, pkg.PkgRel)
 			fmt.Printf("    %s\n", pkg.PkgDesc)
 		}
-	case JsonMode:
-		fmt.Println(string(bytes[:]))
 	}
 	return
 }
@@ -96,16 +116,16 @@ type OfficialInfoResponse OfficialSearchResult
 func (repo OfficialRepo) InfoFromPackage(repoName string, pkgName string) (bytes []byte, err error) {
 	url := OfficialBaseURL + fmt.Sprintf("/%s/x86_64/%s/json", repoName, pkgName)
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	bytes, err = ioutil.ReadAll(resp.Body)
 	return
 }
 
-func (repo OfficialRepo) InfoFromSearch(query string) (bytes []byte, err error) {
-	bytes, err = repo.Search(query)
+func (repo OfficialRepo) InfoFromSearch(conf Conf) (bytes []byte, err error) {
+	bytes, err = repo.Search(conf)
 	if err != nil {
 		return
 	}
@@ -113,30 +133,42 @@ func (repo OfficialRepo) InfoFromSearch(query string) (bytes []byte, err error) 
 	if err != nil {
 		return bytes, err
 	}
-	var result OfficialSearchResult
+	results := []OfficialSearchResult{}
 	for _, r := range res.Results {
-		if r.PkgName == query {
-			result = r
+		if r.PkgName == conf.Args[0] {
+			results = append(results, r)
 		}
 	}
-	if result.PkgName == query {
-		bytes, err = repo.InfoFromPackage(result.Repo, result.PkgName)
-		return
-	} else {
+	switch len(results) {
+	case 0:
 		err = errors.New("not found")
-		return bytes, err
+		return
+	case 1:
+		bytes, err = repo.InfoFromPackage(results[0].Repo, results[0].PkgName)
+		return
+	default:
+		names := []string{}
+		for _, result := range results {
+			names = append(names, result.Repo+"/"+result.PkgName)
+		}
+		err = errors.New("found multiple results (" + strings.Join(names, ", ") + ")")
+		return
 	}
 }
 
-func (repo OfficialRepo) Info(query string) (bytes []byte, err error) {
+func (repo OfficialRepo) Info(conf Conf) (bytes []byte, err error) {
+	if len(conf.Args) == 0 {
+		err = errors.New("please specify package name")
+		return
+	}
+	query := conf.Args[0]
 	if strings.Contains(query, "/") {
 		parts := strings.Split(query, "/")
 		bytes, err = repo.InfoFromPackage(parts[0], parts[1])
 		return
-	} else {
-		bytes, err = repo.InfoFromSearch(query)
-		return
 	}
+	bytes, err = repo.InfoFromSearch(conf)
+	return
 }
 
 func (repo OfficialRepo) ParseInfoResponse(bytes []byte) (response OfficialInfoResponse, err error) {
@@ -144,13 +176,14 @@ func (repo OfficialRepo) ParseInfoResponse(bytes []byte) (response OfficialInfoR
 	return
 }
 
-func (repo OfficialRepo) PrintInfoResponse(query string, mode PrintMode) (err error) {
-	bytes, err := repo.Info(query)
+func (repo OfficialRepo) PrintInfoResponse(conf Conf) (err error) {
+	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
-	switch mode {
-	case NormalMode:
+	if conf.JsonFlag {
+		fmt.Println(string(bytes[:]))
+	} else {
 		res, err := repo.ParseInfoResponse(bytes)
 		if err != nil {
 			return err
@@ -190,14 +223,13 @@ Build Date      : %s
 			joinOrNoneString(deps), joinOrNoneStringForOptDepends(optdeps), joinOrNoneString(res.Conflicts), joinOrNoneString(res.Replaces),
 			bytefmt.ByteSize(uint64(res.CompressedSize)), bytefmt.ByteSize(uint64(res.InstalledSize)),
 			res.Packager, buildDate)
-	case JsonMode:
-		fmt.Println(string(bytes[:]))
 	}
 	return
 }
 
-func (repo OfficialRepo) Get(query string, outFilePath string) (newOutFilePath string, err error) {
-	bytes, err := repo.Info(query)
+func (repo OfficialRepo) Get(conf Conf) (newOutFilePath string, err error) {
+	outFilePath := "" // TODO
+	bytes, err := repo.Info(conf)
 	if err != nil {
 		return
 	}
@@ -207,7 +239,7 @@ func (repo OfficialRepo) Get(query string, outFilePath string) (newOutFilePath s
 	}
 	var url string
 	switch res.Repo {
-	case "core", "extra":
+	case "core", "extra", "testing":
 		url = OfficialCorePackageURL + "/" + res.PkgBase + ".tar.gz"
 	default:
 		url = OfficialCommunityPackageURL + "/" + res.PkgBase + ".tar.gz"
@@ -218,10 +250,10 @@ func (repo OfficialRepo) Get(query string, outFilePath string) (newOutFilePath s
 		return
 	}
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	fmt.Printf("Downloading %s...\n", outFile.Name())
 	_, err = io.Copy(outFile, resp.Body)
 	return
